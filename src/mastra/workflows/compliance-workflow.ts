@@ -54,14 +54,16 @@ const sanctionsCheckStep = createStep({
     proceedToAML: z.boolean(),
     emergencyStop: z.boolean(),
   }),
-  execute: async ({ input }) => {
-    console.log(`ステップ1: 制裁リストチェック開始 - ${input.targetName}`);
+  execute: async (params) => {
+    const { targetName, entityType } = params.inputData;
+    console.log(`ステップ1: 制裁リストチェック開始 - ${targetName}`);
 
     const sanctionsResult = await sanctionsCheckTool.execute({
       context: {
-        name: input.targetName,
-        entityType: input.entityType || "both",
+        name: targetName,
+        entityType: entityType || "both",
       },
+      runtimeContext: params.runtimeContext,
     });
 
     // 緊急停止判定
@@ -99,20 +101,23 @@ const amlCheckStep = createStep({
     combinedRiskLevel: z.string(),
     requiresManualReview: z.boolean(),
   }),
-  execute: async ({ input }) => {
-    console.log(`ステップ2: AMLチェック開始 - ${input.targetName}`);
+  execute: async (params) => {
+    const { targetName, country, industry, additionalInfo, sanctionsResult } =
+      params.inputData;
+    console.log(`ステップ2: AMLチェック開始 - ${targetName}`);
 
     const amlResult = await amlCheckTool.execute({
       context: {
-        name: input.targetName,
-        country: input.country || "Unknown",
-        industry: input.industry || "Unknown",
-        additionalInfo: input.additionalInfo || "",
+        name: targetName,
+        country: country || "Unknown",
+        industry: industry || "Unknown",
+        additionalInfo: additionalInfo || "",
       },
+      runtimeContext: params.runtimeContext,
     });
 
     // 統合リスクレベル判定
-    const sanctionsRisk = input.sanctionsResult.riskAssessment;
+    const sanctionsRisk = sanctionsResult.riskAssessment;
     const amlRisk = amlResult.riskAnalysis.riskLevel;
 
     let combinedRiskLevel = "Low";
@@ -160,21 +165,30 @@ const reportGenerationStep = createStep({
       recommendedActions: z.array(z.string()),
     }),
   }),
-  execute: async ({ input }) => {
-    console.log(`ステップ3: 最終レポート生成開始 - ${input.targetName}`);
+  execute: async (params) => {
+    const {
+      targetName,
+      sanctionsResult,
+      amlResult,
+      requestedBy,
+      purpose,
+      combinedRiskLevel,
+    } = params.inputData;
+    console.log(`ステップ3: 最終レポート生成開始 - ${targetName}`);
 
     const finalReport = await reportGeneratorTool.execute({
       context: {
-        targetName: input.targetName,
-        sanctionsResult: input.sanctionsResult,
-        amlResult: input.amlResult,
-        requestedBy: input.requestedBy || "System",
-        purpose: input.purpose || "Standard compliance check",
+        targetName,
+        sanctionsResult,
+        amlResult,
+        requestedBy: requestedBy || "System",
+        purpose: purpose || "Standard compliance check",
       },
+      runtimeContext: params.runtimeContext,
     });
 
     // 総合判定
-    const riskLevel = input.combinedRiskLevel;
+    const riskLevel = combinedRiskLevel;
     const requiresApproval = ["High", "Critical"].includes(riskLevel);
     const blockTransaction = riskLevel === "Critical";
 
@@ -206,9 +220,7 @@ const reportGenerationStep = createStep({
 
 // メインワークフロー定義
 export const complianceWorkflow = new Workflow({
-  name: "Compliance Check Workflow",
-  description:
-    "包括的な反射チェック（制裁リスト・AMLチェック）を実行するワークフロー",
+  id: "compliance-check-workflow",
   inputSchema: complianceWorkflowInputSchema,
   outputSchema: complianceWorkflowOutputSchema,
   steps: [sanctionsCheckStep, amlCheckStep, reportGenerationStep],
@@ -243,15 +255,17 @@ export async function executeComplianceCheck({
 
   try {
     const result = await complianceWorkflow.execute({
-      targetName,
-      entityType,
-      country,
-      industry,
-      requestedBy,
-      purpose,
-      additionalInfo,
-      urgency,
-    });
+      inputData: {
+        targetName,
+        entityType,
+        country,
+        industry,
+        requestedBy,
+        purpose,
+        additionalInfo,
+        urgency,
+      },
+    } as any);
 
     const processingTime = `${Date.now() - startTime}ms`;
 
@@ -259,9 +273,9 @@ export async function executeComplianceCheck({
       workflowId,
       status: "completed",
       targetName,
-      overallResult: result.overallResult,
-      sanctionsCheckResult: result.sanctionsResult,
-      amlCheckResult: result.amlResult,
+      overallResult: result.overallResult || {},
+      sanctionsCheckResult: result.sanctionsCheckResult,
+      amlCheckResult: result.amlCheckResult,
       finalReport: result.finalReport,
       processingTime,
       timestamp: new Date().toISOString(),
