@@ -86,8 +86,8 @@ async function performWebSearch(
     // フォールバック: 検索結果がない場合は高品質な模擬データを使用
     console.log(`⚠️ Web検索結果なし、フォールバックデータを使用: ${query}`);
     return generateHighQualityMockResults(query, maxResults, searchType);
-  } catch (error) {
-    console.error(`❌ Web検索エラー: ${error.message}`);
+      } catch (error) {
+      console.error(`❌ Web検索エラー: ${error instanceof Error ? error.message : String(error)}`);
 
     // エラー時は模擬データを使用
     console.log(`🔄 フォールバックデータを使用: ${query}`);
@@ -159,7 +159,7 @@ async function searchWithDuckDuckGo(
 
     return results.slice(0, maxResults);
   } catch (error) {
-    console.error(`DuckDuckGo検索エラー: ${error.message}`);
+    console.error(`DuckDuckGo検索エラー: ${error instanceof Error ? error.message : String(error)}`);
     return [];
   }
 }
@@ -186,13 +186,13 @@ async function searchWithSearchGo(
 
         if (results.length >= maxResults) break;
       } catch (error) {
-        console.error(`検索クエリエラー: ${searchQuery}`, error.message);
+        console.error(`検索クエリエラー: ${searchQuery}`, error instanceof Error ? error.message : String(error));
       }
     }
 
     return results.slice(0, maxResults);
   } catch (error) {
-    console.error(`SearchGo検索エラー: ${error.message}`);
+    console.error(`SearchGo検索エラー: ${error instanceof Error ? error.message : String(error)}`);
     return [];
   }
 }
@@ -234,7 +234,7 @@ async function performBasicWebSearch(query: string): Promise<any[]> {
 
     return results;
   } catch (error) {
-    console.error(`基本Web検索エラー: ${error.message}`);
+    console.error(`基本Web検索エラー: ${error instanceof Error ? error.message : String(error)}`);
     return [];
   }
 }

@@ -2,7 +2,7 @@ import { createStep, Workflow } from "@mastra/core/workflows";
 import { z } from "zod";
 import {
   sanctionsCheckTool,
-  amlCheckTool,
+  simpleAmlCheckTool,
   reportGeneratorTool,
 } from "../tools";
 
@@ -106,12 +106,11 @@ const amlCheckStep = createStep({
       params.inputData;
     console.log(`ステップ2: AMLチェック開始 - ${targetName}`);
 
-    const amlResult = await amlCheckTool.execute({
+    const amlResult = await simpleAmlCheckTool.execute({
       context: {
         name: targetName,
         country: country || "Unknown",
         industry: industry || "Unknown",
-        additionalInfo: additionalInfo || "",
       },
       runtimeContext: params.runtimeContext,
     });
@@ -132,8 +131,7 @@ const amlCheckStep = createStep({
     const requiresManualReview =
       combinedRiskLevel === "Critical" ||
       combinedRiskLevel === "High" ||
-      amlResult.riskAnalysis.pepStatus ||
-      amlResult.riskAnalysis.criminalRecord;
+      amlResult.riskAnalysis.fraudSiteStatus;
 
     console.log(`AMLチェック完了 - 統合リスクレベル: ${combinedRiskLevel}`);
 

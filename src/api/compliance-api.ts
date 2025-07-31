@@ -60,20 +60,20 @@ export class ComplianceAPI {
   }
 
   static async getComplianceAgent() {
-    return mastra.agents.complianceAgent;
+    // 直接importしたエージェントを返す
+    const { complianceAgent } = await import("../mastra/agents/compliance-agent.js");
+    return complianceAgent;
   }
 
   static async chatWithAgent(message: string) {
     try {
       const agent = await this.getComplianceAgent();
-      const response = await agent.generate({
-        messages: [
-          {
-            role: "user",
-            content: message,
-          },
-        ],
-      });
+      const response = await agent.generate([
+        {
+          role: "user",
+          content: message,
+        },
+      ]);
 
       return response;
     } catch (error) {

@@ -3,7 +3,7 @@ import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { LibSQLStore } from "@mastra/libsql";
 import { sanctionsCheckTool } from "../tools/sanctions-check-tool.js";
-import { amlCheckTool } from "../tools/aml-check-tool.js";
+import { simpleAmlCheckTool } from "../tools/simple-aml-check-tool.js";
 import { reportGeneratorTool } from "../tools/report-generator-tool.js";
 import { webSearchTool } from "../tools/web-search-tool.js";
 import { japaneseFraudCheckTool } from "../tools/japanese-fraud-check-tool.js";
@@ -56,7 +56,7 @@ sanctionsCheckTool を使用
 
 ### ステップ3: AMLチェック実行
 \`\`\`
-amlCheckTool を使用
+simpleAmlCheckTool を使用
 - PEPデータベースとの照合
 - 犯罪歴・法的リスクの調査
 - 注意人物リスト・監視対象者の確認
@@ -156,7 +156,7 @@ reportGeneratorTool を使用
   model: openai("gpt-4.1"),
   tools: {
     sanctionsCheckTool,
-    amlCheckTool,
+    simpleAmlCheckTool,
     japaneseFraudCheckTool,
     reportGeneratorTool,
     webSearchTool,

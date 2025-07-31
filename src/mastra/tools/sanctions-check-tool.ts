@@ -161,7 +161,7 @@ async function performRealSanctionsWebSearch(
     );
     return sanctionsResults;
   } catch (error) {
-    console.error(`制裁リスト実際のWeb検索エラー: ${error.message}`);
+    console.error(`制裁リスト実際のWeb検索エラー: ${error instanceof Error ? error.message : String(error)}`);
     return [];
   }
 }
@@ -222,7 +222,7 @@ async function searchSanctionsWithDuckDuckGo(
 
     return results.slice(0, maxResults);
   } catch (error) {
-    console.error(`制裁リストDuckDuckGo検索エラー: ${error.message}`);
+    console.error(`制裁リストDuckDuckGo検索エラー: ${error instanceof Error ? error.message : String(error)}`);
     return [];
   }
 }
@@ -253,7 +253,7 @@ async function performSanctionsTargetedSearch(
 
       if (results.length >= maxResults) break;
     } catch (error) {
-      console.error(`制裁リストパターン検索エラー: ${pattern}`, error.message);
+      console.error(`制裁リストパターン検索エラー: ${pattern}`, error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -756,7 +756,7 @@ function parseJapanResults(webContent: string, searchName: string): any[] {
 
 // ヘルパー関数
 function extractAliases(content: string, mainName: string): string[] {
-  const aliases = [];
+  const aliases: string[] = [];
   const aliasPatterns = [
     /also known as[:\s]+"([^"]+)"/gi,
     /alias[:\s]+"([^"]+)"/gi,
