@@ -2,11 +2,9 @@ import { openai } from "@ai-sdk/openai";
 import { Agent } from "@mastra/core/agent";
 import { Memory } from "@mastra/memory";
 import { LibSQLStore } from "@mastra/libsql";
-import {
-  sanctionsCheckTool,
-  amlCheckTool,
-  reportGeneratorTool,
-} from "../tools";
+import { sanctionsCheckTool } from "../tools/sanctions-check-tool.js";
+import { amlCheckTool } from "../tools/aml-check-tool.js";
+import { reportGeneratorTool } from "../tools/report-generator-tool.js";
 
 export const complianceAgent = new Agent({
   name: "Compliance Check Agent",
@@ -40,9 +38,7 @@ export const complianceAgent = new Agent({
 制裁リストチェックとAMLチェックの両方を実行し、統合されたレポートを生成してください。
 常に正確性と透明性を重視し、コンプライアンス違反のリスクを最小化することを目標とします。
   `,
-  model: openai("gpt-4o-mini", {
-    structuredOutputs: true,
-  }),
+  model: openai("gpt-4.1"),
   tools: {
     sanctionsCheckTool,
     amlCheckTool,
