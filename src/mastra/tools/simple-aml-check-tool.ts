@@ -46,7 +46,7 @@ export const simpleAmlCheckTool = createTool({
       let recommendations = ["標準的なモニタリング継続"];
 
       if (hasJapaneseCharacters || country === "Japan" || country === "JP") {
-        console.log(`🇯🇵 日本詐欺情報サイト検索: ${name}`);
+        console.log(`🇯🇵 日本詐欺情報・犯罪者データベース検索: ${name}`);
 
         try {
           // AI詐欺情報解析を直接使用（runtimeContext不要）
@@ -54,6 +54,13 @@ export const simpleAmlCheckTool = createTool({
             "./japanese-fraud-check-tool.js"
           );
 
+          // 1. 重大犯罪者データベースをチェック（最優先）
+          const majorCriminalResult = await analyzeFraudInformationWithAI(
+            name,
+            "major_criminals_japan"
+          );
+
+          // 2. 詐欺情報サイトをチェック
           const blackmoneyResult = await analyzeFraudInformationWithAI(
             name,
             "eradicationofblackmoneyscammers.com"
@@ -63,7 +70,23 @@ export const simpleAmlCheckTool = createTool({
             "yamagatamasakage.com"
           );
 
-          if (blackmoneyResult.found || yamagataResult.found) {
+          // 重大犯罪者として検出された場合（最高リスク）
+          if (majorCriminalResult.found) {
+            fraudSiteStatus = true;
+            riskScore = 10; // 最高リスクスコア
+            riskLevel = "Critical";
+            details = `🚨 重大犯罪者検出: ${majorCriminalResult.details}`;
+
+            recommendations = [
+              "🚨 即座の取引拒否・停止",
+              "📞 緊急：上級管理者・経営陣への即時報告",
+              "📋 警察・監督当局への報告検討",
+              "🔒 全ての関連取引・口座の凍結",
+              "📄 詳細記録の作成・法的保全",
+            ];
+          }
+          // 詐欺情報サイトで検出された場合
+          else if (blackmoneyResult.found || yamagataResult.found) {
             fraudSiteStatus = true;
             riskScore = 8;
             riskLevel = "High";
@@ -81,16 +104,16 @@ export const simpleAmlCheckTool = createTool({
             ];
           } else {
             details =
-              "日本語詐欺情報サイト（yamagatamasakage.com、eradicationofblackmoneyscammers.com）：該当なし";
+              "重大犯罪者データベース・日本語詐欺情報サイト（yamagatamasakage.com、eradicationofblackmoneyscammers.com）：該当なし";
           }
         } catch (error) {
           console.warn(
-            `詐欺チェックエラー: ${error instanceof Error ? error.message : String(error)}`
+            `犯罪者・詐欺チェックエラー: ${error instanceof Error ? error.message : String(error)}`
           );
-          details = "詐欺情報サイト検索でエラーが発生しました";
+          details = "犯罪者・詐欺情報データベース検索でエラーが発生しました";
         }
       } else {
-        details = "海外名のため日本詐欺情報サイト検索対象外";
+        details = "海外名のため日本犯罪者・詐欺情報データベース検索対象外";
       }
 
       const processingTime = Date.now() - startTime;

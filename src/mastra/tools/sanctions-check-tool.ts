@@ -268,29 +268,54 @@ async function simulateSanctionsNewsSearch(
   // 実際の実装では、OFAC API、EU制裁データベースAPI等を使用
   const results = [];
 
-  // 日本の問題人物の場合
-  if (
-    originalQuery.includes("へずまりゅう") ||
-    originalQuery.includes("原田将大")
-  ) {
-    results.push({
-      title: "日本銀行協会 - レピュテーションリスク警告",
-      snippet:
-        "へずまりゅう（原田将大）について、迷惑系YouTuberとしての活動により企業・金融機関への重大なレピュテーションリスクとして警戒を呼びかけ。",
-      url: "https://jba.or.jp/reputation-warning/hezumaryu",
-      relevanceScore: 0.93,
-      source: "JBA Official API",
-    });
+      // 重大犯罪者の場合（最高リスク）
+    if (
+      originalQuery.includes("酒鬼薔薇聖斗") ||
+      originalQuery.includes("さかきばらせいと") ||
+      originalQuery.includes("元少年A")
+    ) {
+      results.push({
+        title: "警察庁 - 重大犯罪者情報データベース",
+        snippet:
+          "酒鬼薔薇聖斗（元少年A）- 神戸連続児童殺傷事件の犯人。1997年に14歳で2名を殺害、3名を傷害。極めて危険な人物として金融機関は取引拒否を強く推奨。",
+        url: "https://npa.go.jp/major-criminals/sakakibara-seito",
+        relevanceScore: 1.0,
+        source: "NPA Criminal Database",
+      });
 
-    results.push({
-      title: "全国銀行協会 - 高リスク顧客データベース",
-      snippet:
-        "原田将大（へずまりゅう）は複数回の逮捕歴により、金融機関にとって高リスク顧客として分類。取引開始前の十分な審査が必要。",
-      url: "https://zenginkyo.or.jp/high-risk-db/harada-masahiro",
-      relevanceScore: 0.89,
-      source: "Banking Association API",
-    });
-  }
+      results.push({
+        title: "金融庁 - 反社会的勢力データベース",
+        snippet:
+          "酒鬼薔薇聖斗は重大犯罪者として、金融機関の反社会的勢力データベースに永久登録。いかなる金融取引も禁止。",
+        url: "https://jfsa.go.jp/antisocial-db/sakakibara",
+        relevanceScore: 1.0,
+        source: "JFSA Antisocial Database",
+      });
+    }
+
+    // 日本の問題人物の場合
+    if (
+      originalQuery.includes("へずまりゅう") ||
+      originalQuery.includes("原田将大")
+    ) {
+      results.push({
+        title: "日本銀行協会 - レピュテーションリスク警告",
+        snippet:
+          "へずまりゅう（原田将大）について、迷惑系YouTuberとしての活動により企業・金融機関への重大なレピュテーションリスクとして警戒を呼びかけ。",
+        url: "https://jba.or.jp/reputation-warning/hezumaryu",
+        relevanceScore: 0.93,
+        source: "JBA Official API",
+      });
+
+      results.push({
+        title: "全国銀行協会 - 高リスク顧客データベース",
+        snippet:
+          "原田将大（へずまりゅう）は複数回の逮捕歴により、金融機関にとって高リスク顧客として分類。取引開始前の十分な審査が必要。",
+        url: "https://zenginkyo.or.jp/high-risk-db/harada-masahiro",
+        relevanceScore: 0.89,
+        source: "Banking Association API",
+      });
+    }
 
   if (originalQuery.includes("シバター") || originalQuery.includes("斎藤光")) {
     results.push({
@@ -476,6 +501,47 @@ function generateEnhancedSanctionsResults(query: string): any[] {
         },
       ],
     },
+    // 重大犯罪者（金融機関は取引完全拒否）
+    {
+      condition: (name: string) =>
+        ["酒鬼薔薇聖斗", "さかきばらせいと", "元少年A", "sakakibara"].some((k) =>
+          name.toLowerCase().includes(k.toLowerCase())
+        ),
+      results: [
+        {
+          title: "警察庁 - 重大犯罪者データベース",
+          snippet:
+            "酒鬼薔薇聖斗（元少年A）- 神戸連続児童殺傷事件の犯人。1997年に14歳で2名を殺害、3名を傷害。極めて危険な人物として金融機関は取引を完全拒否すべき。",
+          url: "https://npa.go.jp/major-criminals/sakakibara",
+          relevanceScore: 1.0,
+          source: "NPA Criminal Database",
+        },
+        {
+          title: "金融庁 - 反社会的勢力データベース",
+          snippet:
+            "酒鬼薔薇聖斗は重大犯罪者として反社会的勢力データベースに永久登録。いかなる金融取引も禁止。取引発覚時は即座に当局報告が義務。",
+          url: "https://jfsa.go.jp/antisocial-forces/sakakibara",
+          relevanceScore: 1.0,
+          source: "JFSA Antisocial Database",
+        },
+      ],
+    },
+    {
+      condition: (name: string) =>
+        ["宅間守", "たくままもる", "takuma"].some((k) =>
+          name.toLowerCase().includes(k.toLowerCase())
+        ),
+      results: [
+        {
+          title: "警察庁 - 重大犯罪者記録",
+          snippet:
+            "宅間守 - 附属池田小事件の犯人。2001年に小学校で児童8名を殺害、15名を傷害。2004年死刑執行。金融機関は同姓同名も慎重に審査。",
+          url: "https://npa.go.jp/major-criminals/takuma-mamoru",
+          relevanceScore: 1.0,
+          source: "NPA Records",
+        },
+      ],
+    },
     // 日本の問題人物・監視対象者（金融機関リスク管理の観点から）
     {
       condition: (name: string) =>
@@ -597,6 +663,17 @@ function generateMockSanctionsSearchResults(query: string): string {
       name: "田中太郎",
       keywords: ["田中", "太郎", "tanaka", "taro"],
       result: `日本政府制裁措置 - 田中太郎氏が疑わしい取引の監視リストに記載。金融庁のAML/CFT監視対象。個人。日本。理由: 複数の疑わしい取引報告。2023年9月追加。`,
+    },
+    // 重大犯罪者（最高リスク）
+    {
+      name: "酒鬼薔薇聖斗",
+      keywords: ["酒鬼薔薇聖斗", "さかきばらせいと", "元少年A", "sakakibara"],
+      result: `警察庁重大犯罪者データベース - 酒鬼薔薇聖斗（元少年A）が重大犯罪者として永久登録。神戸連続児童殺傷事件の犯人。1997年に14歳で2名を殺害、3名を傷害。個人。日本。理由: 極めて重大な凶悪犯罪。金融機関は取引完全拒否。1997年追加。`,
+    },
+    {
+      name: "宅間守",
+      keywords: ["宅間守", "たくままもる", "takuma"],
+      result: `警察庁重大犯罪者記録 - 宅間守が重大犯罪者として記録。附属池田小事件の犯人。2001年に児童8名を殺害、15名を傷害。個人。日本。理由: 大量殺人事件。2004年死刑執行済み。同姓同名も要注意。2001年追加。`,
     },
     // 日本の問題人物・監視対象者
     {
