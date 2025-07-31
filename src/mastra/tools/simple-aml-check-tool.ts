@@ -69,6 +69,10 @@ export const simpleAmlCheckTool = createTool({
             name,
             "yamagatamasakage.com"
           );
+          const moneylineResult = await analyzeFraudInformationWithAI(
+            name,
+            "moneyline.jp"
+          );
 
           // 重大犯罪者として検出された場合（最高リスク）
           if (majorCriminalResult.found) {
@@ -86,14 +90,20 @@ export const simpleAmlCheckTool = createTool({
             ];
           }
           // 詐欺情報サイトで検出された場合
-          else if (blackmoneyResult.found || yamagataResult.found) {
+          else if (
+            blackmoneyResult.found ||
+            yamagataResult.found ||
+            moneylineResult.found
+          ) {
             fraudSiteStatus = true;
             riskScore = 8;
             riskLevel = "High";
 
             const detectedResult = blackmoneyResult.found
               ? blackmoneyResult
-              : yamagataResult;
+              : yamagataResult.found
+                ? yamagataResult
+                : moneylineResult;
             details = `詐欺情報検出: ${detectedResult.details}`;
 
             recommendations = [
@@ -104,7 +114,7 @@ export const simpleAmlCheckTool = createTool({
             ];
           } else {
             details =
-              "重大犯罪者データベース・日本語詐欺情報サイト（yamagatamasakage.com、eradicationofblackmoneyscammers.com）：該当なし";
+              "重大犯罪者データベース・日本語詐欺情報サイト（yamagatamasakage.com、eradicationofblackmoneyscammers.com、moneyline.jp）：該当なし";
           }
         } catch (error) {
           console.warn(

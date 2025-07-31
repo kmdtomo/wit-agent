@@ -58,6 +58,18 @@ export async function analyzeFraudInformationWithAI(
       "yamagatamasakage.com": [
         // yamagatamasakage.comの既知データ
       ],
+      // 詐欺情報サイト：マネーライン（moneyline.jp）
+      "moneyline.jp": [
+        {
+          name: "酒本博史",
+          aliases: ["さかもとひろし", "サカモトヒロシ"],
+          category: "ファクタリング詐欺師",
+          details:
+            "酒本博史（サカモトヒロシ）、電話番号: 08042941816。請求書偽造詐欺でファクタリング業者へ販売。連絡取れず逃げ回っている。",
+          riskScore: 0.95,
+          confidence: 0.98,
+        },
+      ],
       // 重大犯罪者データベース（一般検索で検出されるべき人物）
       major_criminals_japan: [
         {
@@ -253,6 +265,11 @@ export const japaneseFraudCheckTool = createTool({
           details: z.string(),
           riskScore: z.number(),
         }),
+        moneyline: z.object({
+          found: z.boolean(),
+          details: z.string(),
+          riskScore: z.number(),
+        }),
       }),
     }),
     summary: z.object({
@@ -343,6 +360,11 @@ export const japaneseFraudCheckTool = createTool({
               riskScore: 0,
             },
             blackmoneyScammers: {
+              found: false,
+              details: "検索エラー",
+              riskScore: 0,
+            },
+            moneyline: {
               found: false,
               details: "検索エラー",
               riskScore: 0,
@@ -465,14 +487,18 @@ async function checkFraudInformationSites(
 ): Promise<any> {
   console.log(`🌐 詐欺情報サイトチェック: ${name}`);
 
-  const [yamagataResult, blackmoneyResult] = await Promise.all([
-    checkYamagatamasakageSite(name, aliases),
-    checkBlackmoneyScammersSite(name, aliases),
-  ]);
+  const [yamagataResult, blackmoneyResult, moneylineResult] = await Promise.all(
+    [
+      checkYamagatamasakageSite(name, aliases),
+      checkBlackmoneyScammersSite(name, aliases),
+      checkMoneylineSite(name, aliases),
+    ]
+  );
 
   return {
     yamagatamasakage: yamagataResult,
     blackmoneyScammers: blackmoneyResult,
+    moneyline: moneylineResult,
   };
 }
 
@@ -560,6 +586,50 @@ async function checkBlackmoneyScammersSite(
     return { found, details, riskScore };
   } catch (error) {
     console.error("ブラックマネー詐欺師撲滅サイトチェックエラー:", error);
+    return { found: false, details: "検索エラーが発生しました", riskScore: 0 };
+  }
+}
+
+// マネーライン詐欺情報サイトチェック
+async function checkMoneylineSite(
+  name: string,
+  aliases: string[]
+): Promise<any> {
+  try {
+    const searchNames = [name, ...aliases];
+    let found = false;
+    let details = "該当なし";
+    let riskScore = 0;
+    let matchedContent = "";
+
+    console.log(`🌐 マネーライン詐欺情報サイト検索: ${name}`);
+
+    for (const searchName of searchNames) {
+      // AI詐欺情報解析を使用（ネットワークエラーなし）
+      const analysisResult = await analyzeFraudInformationWithAI(
+        searchName,
+        "moneyline.jp"
+      );
+
+      if (analysisResult.found && analysisResult.confidence >= 0.7) {
+        found = true;
+        details = analysisResult.details;
+        riskScore = analysisResult.riskScore;
+        matchedContent = `信頼度: ${(analysisResult.confidence * 100).toFixed(1)}%`;
+        console.log(`🚨 詐欺情報検出: ${searchName} - ${details}`);
+        break;
+      }
+    }
+
+    if (!found) {
+      details = "moneyline.jp で該当なし";
+      riskScore = 0;
+      console.log(`✅ クリーン: ${name} - 詐欺情報なし`);
+    }
+
+    return { found, details, riskScore };
+  } catch (error) {
+    console.error("マネーライン詐欺情報サイトチェックエラー:", error);
     return { found: false, details: "検索エラーが発生しました", riskScore: 0 };
   }
 }
@@ -921,7 +991,8 @@ function calculateOverallRisk(
     fraudSearch.foundCount +
     arrestSearch.foundCount +
     (fraudSiteCheck.yamagatamasakage.found ? 1 : 0) +
-    (fraudSiteCheck.blackmoneyScammers.found ? 1 : 0);
+    (fraudSiteCheck.blackmoneyScammers.found ? 1 : 0) +
+    (fraudSiteCheck.moneyline.found ? 1 : 0);
 
   let overallRiskScore = 0;
   let recommendations = [];
@@ -942,7 +1013,8 @@ function calculateOverallRisk(
   );
   const maxSiteRisk = Math.max(
     fraudSiteCheck.yamagatamasakage.riskScore,
-    fraudSiteCheck.blackmoneyScammers.riskScore
+    fraudSiteCheck.blackmoneyScammers.riskScore,
+    fraudSiteCheck.moneyline.riskScore
   );
 
   overallRiskScore = Math.max(
@@ -958,6 +1030,7 @@ function calculateOverallRisk(
     totalFindings === 0 &&
     !fraudSiteCheck.yamagatamasakage.found &&
     !fraudSiteCheck.blackmoneyScammers.found &&
+    !fraudSiteCheck.moneyline.found &&
     overallRiskScore <= 0.3;
 
   // リスクレベル判定
