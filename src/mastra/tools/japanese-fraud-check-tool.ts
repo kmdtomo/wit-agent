@@ -313,13 +313,13 @@ async function checkYamagatamasakageSite(
       const results = await performWebSearch(siteQuery, "fraud_site");
 
       // 実際に問題がある場合のみリスクありとする
-      const hasRealIssue = results.some(result => 
-        result.snippet && (
-          result.snippet.includes("詐欺") || 
-          result.snippet.includes("借りパク") ||
-          result.snippet.includes("トラブル") ||
-          result.snippet.includes("被害")
-        )
+      const hasRealIssue = results.some(
+        (result) =>
+          result.snippet &&
+          (result.snippet.includes("詐欺") ||
+            result.snippet.includes("借りパク") ||
+            result.snippet.includes("トラブル") ||
+            result.snippet.includes("被害"))
       );
 
       if (results.length > 0 && hasRealIssue) {
@@ -360,14 +360,14 @@ async function checkBlackmoneyScammersSite(
       const results = await performWebSearch(siteQuery, "fraud_site");
 
       // 実際に問題がある場合のみリスクありとする
-      const hasRealIssue = results.some(result => 
-        result.snippet && (
-          result.snippet.includes("詐欺") || 
-          result.snippet.includes("借りパク") ||
-          result.snippet.includes("トラブル") ||
-          result.snippet.includes("被害") ||
-          result.snippet.includes("闇金")
-        )
+      const hasRealIssue = results.some(
+        (result) =>
+          result.snippet &&
+          (result.snippet.includes("詐欺") ||
+            result.snippet.includes("借りパク") ||
+            result.snippet.includes("トラブル") ||
+            result.snippet.includes("被害") ||
+            result.snippet.includes("闇金"))
       );
 
       if (results.length > 0 && hasRealIssue) {
@@ -638,11 +638,23 @@ function processSearchResults(results: any[], category: string): any[] {
       // **重要**: 実際に問題のあるキーワードが含まれている場合のみ通す
       const contentLower = (result.title + " " + result.snippet).toLowerCase();
       const hasProblematicContent = [
-        "逮捕", "詐欺", "犯罪", "有罪", "容疑者", "事件", 
-        "借りパク", "被害者", "警察", "起訴", "裁判", 
-        "違法", "闇金", "炎上", "迷惑"
-      ].some(keyword => contentLower.includes(keyword));
-      
+        "逮捕",
+        "詐欺",
+        "犯罪",
+        "有罪",
+        "容疑者",
+        "事件",
+        "借りパク",
+        "被害者",
+        "警察",
+        "起訴",
+        "裁判",
+        "違法",
+        "闇金",
+        "炎上",
+        "迷惑",
+      ].some((keyword) => contentLower.includes(keyword));
+
       return result.riskScore > 0.4 && hasProblematicContent;
     })
     .sort((a, b) => b.riskScore - a.riskScore)
@@ -694,10 +706,11 @@ function calculateOverallRisk(
 
   // **重要**: 何も問題が見つからない場合は明確にLOWリスクとする
   // 詐欺情報サイトで何も見つからず、他の検索でも問題がない場合
-  const isClean = totalFindings === 0 && 
-                  !fraudSiteCheck.yamagatamasakage.found && 
-                  !fraudSiteCheck.blackmoneyScammers.found &&
-                  overallRiskScore <= 0.3;
+  const isClean =
+    totalFindings === 0 &&
+    !fraudSiteCheck.yamagatamasakage.found &&
+    !fraudSiteCheck.blackmoneyScammers.found &&
+    overallRiskScore <= 0.3;
 
   // リスクレベル判定
   let riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
