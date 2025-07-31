@@ -204,7 +204,7 @@ async function performRealWebSearch(
     const targetedResults = await performTargetedWebSearch(query, maxResults);
     return targetedResults;
   } catch (error) {
-    console.error(`実際のWeb検索エラー: ${error.message}`);
+    console.error(`実際のWeb検索エラー: ${error}`);
     return [];
   }
 }
@@ -265,7 +265,7 @@ async function searchWithDuckDuckGoAPI(
 
     return results.slice(0, maxResults);
   } catch (error) {
-    console.error(`DuckDuckGo検索エラー: ${error.message}`);
+    console.error(`DuckDuckGo検索エラー: ${error}`);
     return [];
   }
 }
@@ -295,7 +295,7 @@ async function performTargetedWebSearch(
 
       if (results.length >= maxResults) break;
     } catch (error) {
-      console.error(`パターン検索エラー: ${pattern}`, error.message);
+      console.error(`パターン検索エラー: ${pattern}`, error);
     }
   }
 

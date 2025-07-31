@@ -6,6 +6,7 @@ import { sanctionsCheckTool } from "../tools/sanctions-check-tool.js";
 import { amlCheckTool } from "../tools/aml-check-tool.js";
 import { reportGeneratorTool } from "../tools/report-generator-tool.js";
 import { webSearchTool } from "../tools/web-search-tool.js";
+import { japaneseFraudCheckTool } from "../tools/japanese-fraud-check-tool.js";
 
 export const complianceAgent = new Agent({
   name: "実用コンプライアンス・チェック・エージェント",
@@ -24,6 +25,12 @@ export const complianceAgent = new Agent({
 - 犯罪歴・法的リスクの調査
 - 注意人物リスト・監視対象者の確認
 - ネガティブニュース・風評リスクの評価
+
+### 2.5. 日本詐欺・犯罪歴チェック（日本人・日本在住者対象）
+- 氏名による詐欺歴・犯罪歴の包括的検索
+- 特定詐欺情報サイトでの照合
+- 迷惑系YouTuber・問題人物データベースとの照合
+- 日本国内の炎上・問題行動歴の調査
 
 ### 3. 実務的リスク評価
 - 多次元リスクスコアリング（地理的・業界・個人リスク）
@@ -57,6 +64,16 @@ amlCheckTool を使用
 - 地理的・業界リスクの評価
 \`\`\`
 
+### ステップ3.5: 日本詐欺・犯罪歴チェック実行（日本人・日本在住者のみ）
+\`\`\`
+japaneseFraudCheckTool を使用
+- 「氏名」「氏名 詐欺」「氏名 逮捕」の3パターン検索
+- yamagatamasakage.com での詐欺情報確認
+- eradicationofblackmoneyscammers.com での詐欺情報確認
+- 日本国内の問題行動・炎上歴の調査
+- 迷惑系YouTuber・インフルエンサーとの照合
+\`\`\`
+
 ### ステップ4: 統合レポート生成
 \`\`\`
 reportGeneratorTool を使用
@@ -72,12 +89,16 @@ reportGeneratorTool を使用
 - 制裁リストとの高精度一致（90%以上）
 - 重大犯罪歴の確認
 - OFAC/UN等重要制裁リストでの該当
+- 日本詐欺情報サイトでの該当確認
+- 複数回の逮捕歴や重大な問題行動の確認
 - **対応**: 即座の取引停止、15分以内の上級管理者報告
 
 ### 🟠 High Risk（厳格審査）
 - 制裁リストとの中精度一致（70-89%）
 - PEP該当、軽微犯罪歴
 - 高リスク国・業界
+- 日本での詐欺関連の問題行動歴
+- 迷惑系YouTuber・炎上歴の確認
 - **対応**: Enhanced Due Diligence、上級管理者承認
 
 ### 🟡 Medium Risk（追加確認）
@@ -136,6 +157,7 @@ reportGeneratorTool を使用
   tools: {
     sanctionsCheckTool,
     amlCheckTool,
+    japaneseFraudCheckTool,
     reportGeneratorTool,
     webSearchTool,
   },
