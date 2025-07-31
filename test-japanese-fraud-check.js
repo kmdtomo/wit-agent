@@ -4,11 +4,11 @@
  * 日本詐欺・犯罪歴チェック機能のテストスクリプト
  *
  * 使用方法:
- * node test-japanese-fraud-check.js [氏名]
+ * npx tsx test-japanese-fraud-check.js [氏名]
  *
  * 例:
- * node test-japanese-fraud-check.js "へずまりゅう"
- * node test-japanese-fraud-check.js "田中太郎"
+ * npx tsx test-japanese-fraud-check.js "へずまりゅう"
+ * npx tsx test-japanese-fraud-check.js "岩田照太"
  */
 
 import { japaneseFraudCheckTool } from "./src/mastra/tools/japanese-fraud-check-tool.js";

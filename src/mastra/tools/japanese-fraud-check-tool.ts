@@ -304,7 +304,7 @@ async function checkYamagatamasakageSite(
   try {
     const searchNames = [name, ...aliases];
     let found = false;
-    let details = "該当なし";
+    let details = "該当なし - クリーン";
     let riskScore = 0;
 
     for (const searchName of searchNames) {
@@ -312,12 +312,28 @@ async function checkYamagatamasakageSite(
       const siteQuery = `site:yamagatamasakage.com "${searchName}"`;
       const results = await performWebSearch(siteQuery, "fraud_site");
 
-      if (results.length > 0) {
+      // 実際に問題がある場合のみリスクありとする
+      const hasRealIssue = results.some(result => 
+        result.snippet && (
+          result.snippet.includes("詐欺") || 
+          result.snippet.includes("借りパク") ||
+          result.snippet.includes("トラブル") ||
+          result.snippet.includes("被害")
+        )
+      );
+
+      if (results.length > 0 && hasRealIssue) {
         found = true;
         details = `${searchName}に関する詐欺情報が発見されました`;
         riskScore = 0.9;
         break;
       }
+    }
+
+    // 何も見つからない場合は明確に低リスク
+    if (!found) {
+      details = "詐欺情報サイトで該当なし - クリーン";
+      riskScore = 0;
     }
 
     return { found, details, riskScore };
@@ -335,7 +351,7 @@ async function checkBlackmoneyScammersSite(
   try {
     const searchNames = [name, ...aliases];
     let found = false;
-    let details = "該当なし";
+    let details = "該当なし - クリーン";
     let riskScore = 0;
 
     for (const searchName of searchNames) {
@@ -343,12 +359,29 @@ async function checkBlackmoneyScammersSite(
       const siteQuery = `site:eradicationofblackmoneyscammers.com "${searchName}"`;
       const results = await performWebSearch(siteQuery, "fraud_site");
 
-      if (results.length > 0) {
+      // 実際に問題がある場合のみリスクありとする
+      const hasRealIssue = results.some(result => 
+        result.snippet && (
+          result.snippet.includes("詐欺") || 
+          result.snippet.includes("借りパク") ||
+          result.snippet.includes("トラブル") ||
+          result.snippet.includes("被害") ||
+          result.snippet.includes("闇金")
+        )
+      );
+
+      if (results.length > 0 && hasRealIssue) {
         found = true;
         details = `${searchName}に関する詐欺情報が発見されました`;
         riskScore = 0.9;
         break;
       }
+    }
+
+    // 何も見つからない場合は明確に低リスク
+    if (!found) {
+      details = "詐欺情報サイトで該当なし - クリーン";
+      riskScore = 0;
     }
 
     return { found, details, riskScore };
@@ -536,22 +569,15 @@ function calculateRiskScore(
   query: string,
   category: string
 ): number {
-  let score = 0.1;
+  let score = 0;
 
   const contentLower = (result.title + " " + result.snippet).toLowerCase();
   const queryLower = query.toLowerCase();
 
-  // カテゴリ別基本スコア
-  const categoryScores = {
-    basic: 0.2,
-    fraud: 0.7,
-    arrest: 0.8,
-    fraud_site: 0.9,
-  };
+  // **重要**: 実際に問題のあるコンテンツのみに高スコアを付与
+  // カテゴリだけでは自動的に高スコアにしない
 
-  score += categoryScores[category as keyof typeof categoryScores] || 0.2;
-
-  // 高リスクキーワード
+  // 高リスクキーワードが実際にコンテンツに含まれている場合のみスコアを上げる
   const highRiskKeywords = [
     "逮捕",
     "詐欺",
@@ -570,13 +596,37 @@ function calculateRiskScore(
     "違法",
     "迷惑",
     "危険",
+    "闇金",
   ];
 
+  let keywordMatches = 0;
   highRiskKeywords.forEach((keyword) => {
     if (contentLower.includes(keyword)) {
-      score += 0.1;
+      keywordMatches++;
+      score += 0.15; // キーワードごとにスコアを増加
     }
   });
+
+  // カテゴリ別の軽微な基本スコア（実際に問題のあるコンテンツの場合のみ）
+  if (keywordMatches > 0) {
+    const categoryScores = {
+      basic: 0.1,
+      fraud: 0.2,
+      arrest: 0.3,
+      fraud_site: 0.4,
+    };
+    score += categoryScores[category as keyof typeof categoryScores] || 0.1;
+  }
+
+  // 複数のキーワードが含まれている場合は重大と判定
+  if (keywordMatches >= 3) {
+    score += 0.3;
+  }
+
+  // **重要**: 問題のあるキーワードが含まれていない場合は低スコア
+  if (keywordMatches === 0) {
+    score = 0.1; // ほぼリスクなし
+  }
 
   return Math.min(score, 1.0);
 }
@@ -584,9 +634,19 @@ function calculateRiskScore(
 // 検索結果処理
 function processSearchResults(results: any[], category: string): any[] {
   return results
-    .filter((result) => result.riskScore > 0.3) // 低リスクを除外
+    .filter((result) => {
+      // **重要**: 実際に問題のあるキーワードが含まれている場合のみ通す
+      const contentLower = (result.title + " " + result.snippet).toLowerCase();
+      const hasProblematicContent = [
+        "逮捕", "詐欺", "犯罪", "有罪", "容疑者", "事件", 
+        "借りパク", "被害者", "警察", "起訴", "裁判", 
+        "違法", "闇金", "炎上", "迷惑"
+      ].some(keyword => contentLower.includes(keyword));
+      
+      return result.riskScore > 0.4 && hasProblematicContent;
+    })
     .sort((a, b) => b.riskScore - a.riskScore)
-    .slice(0, 20); // 上位20件
+    .slice(0, 15); // 上位15件に制限（質の高い結果のみ）
 }
 
 // 総合リスク評価
@@ -632,10 +692,23 @@ function calculateOverallRisk(
     maxSiteRisk
   );
 
+  // **重要**: 何も問題が見つからない場合は明確にLOWリスクとする
+  // 詐欺情報サイトで何も見つからず、他の検索でも問題がない場合
+  const isClean = totalFindings === 0 && 
+                  !fraudSiteCheck.yamagatamasakage.found && 
+                  !fraudSiteCheck.blackmoneyScammers.found &&
+                  overallRiskScore <= 0.3;
+
   // リスクレベル判定
   let riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
-  if (overallRiskScore >= 0.8 || totalFindings >= 5) {
+  if (isClean) {
+    // 完全にクリーンな場合
+    riskLevel = "LOW";
+    overallRiskScore = 0;
+    recommendations.push("該当なし - 標準のKYC手続きで継続可能");
+    recommendations.push("年次の定期チェックのみで十分");
+  } else if (overallRiskScore >= 0.8 || totalFindings >= 5) {
     riskLevel = "CRITICAL";
     urgentActions.push("即座の取引停止");
     urgentActions.push("上級管理者への緊急報告");
@@ -670,7 +743,10 @@ function calculateOverallRisk(
 function generateMockResults(query: string, category: string): any[] {
   const results = [];
 
-  // 特定の問題人物のモックデータ
+  // **既知の問題人物のみ**にモックデータを生成
+  // 一般的な名前や未知の人物はクリーンとして扱う
+
+  // 特定の問題人物のモックデータ（実際に問題がある人物のみ）
   if (query.includes("へずまりゅう") || query.includes("原田将大")) {
     results.push({
       title: "迷惑系YouTuber「へずまりゅう」に関する最新情報",
@@ -682,16 +758,20 @@ function generateMockResults(query: string, category: string): any[] {
     });
   }
 
-  if (query.includes("詐欺") && query.includes("田中")) {
+  // シバターの場合（実際に炎上歴がある）
+  if (query.includes("シバター") || query.includes("斎藤光")) {
     results.push({
-      title: "田中氏の詐欺事件に関する報道",
+      title: "シバター、また炎上 - 過激発言で複数の企業が距離を置く",
       snippet:
-        "田中氏が関与した詐欺事件の詳細。被害額は数百万円に上り、現在も捜査が継続中。",
-      url: "https://news.example.com/tanaka-fraud",
+        "YouTuberのシバター（斎藤光）が過激な発言を繰り返し炎上。複数の企業がスポンサー契約を見直すなど、影響が拡大している。",
+      url: "https://livedoor.news/shibata-controversy-latest",
       category,
-      riskScore: 0.85,
+      riskScore: 0.7,
     });
   }
+
+  // **注意**: 一般的な名前（田中、佐藤、岩田など）は問題がない限りモックデータを生成しない
+  // 詐欺キーワードとの組み合わせでも、実際に問題がない人は空の結果を返す
 
   return results;
 }
