@@ -1,10 +1,6 @@
 import { createStep, Workflow } from "@mastra/core/workflows";
 import { z } from "zod";
-import {
-  sanctionsCheckTool,
-  simpleAmlCheckTool,
-  reportGeneratorTool,
-} from "../tools";
+import { complianceAgent } from "../agents/compliance-agent";
 
 // ワークフロー入力スキーマ
 const complianceWorkflowInputSchema = z.object({
@@ -35,199 +31,132 @@ const complianceWorkflowOutputSchema = z.object({
     blockTransaction: z.boolean(),
     recommendedActions: z.array(z.string()),
   }),
-  sanctionsCheckResult: z.any().optional(),
-  amlCheckResult: z.any().optional(),
-  finalReport: z.any().optional(),
+  finalReport: z.any(),
   processingTime: z.string(),
   timestamp: z.string(),
 });
 
-// ステップ1: 制裁リストチェック
-const sanctionsCheckStep = createStep({
-  id: "sanctions-check-step",
-  inputSchema: z.object({
-    targetName: z.string(),
-    entityType: z.enum(["individual", "entity", "both"]).optional(),
-  }),
+// 単一ステップ: コンプライアンスエージェント実行
+const complianceAgentStep = createStep({
+  id: "compliance-agent-step",
+  inputSchema: complianceWorkflowInputSchema,
   outputSchema: z.object({
-    sanctionsResult: z.any(),
-    proceedToAML: z.boolean(),
-    emergencyStop: z.boolean(),
-  }),
-  execute: async (params) => {
-    const { targetName, entityType } = params.inputData;
-    console.log(`ステップ1: 制裁リストチェック開始 - ${targetName}`);
-
-    const sanctionsResult = await sanctionsCheckTool.execute({
-      context: {
-        name: targetName,
-        entityType: entityType || "both",
-      },
-      runtimeContext: params.runtimeContext,
-    });
-
-    // 緊急停止判定
-    const emergencyStop =
-      sanctionsResult.riskAssessment === "Critical Risk" &&
-      sanctionsResult.matches.some((m: any) => m.matchScore >= 0.95);
-
-    // AMLチェック継続判定
-    const proceedToAML = !emergencyStop;
-
-    console.log(
-      `制裁リストチェック完了 - リスクレベル: ${sanctionsResult.riskAssessment}`
-    );
-
-    return {
-      sanctionsResult,
-      proceedToAML,
-      emergencyStop,
-    };
-  },
-});
-
-// ステップ2: AMLチェック
-const amlCheckStep = createStep({
-  id: "aml-check-step",
-  inputSchema: z.object({
-    targetName: z.string(),
-    country: z.string().optional(),
-    industry: z.string().optional(),
-    additionalInfo: z.string().optional(),
-    sanctionsResult: z.any(),
-  }),
-  outputSchema: z.object({
-    amlResult: z.any(),
-    combinedRiskLevel: z.string(),
-    requiresManualReview: z.boolean(),
-  }),
-  execute: async (params) => {
-    const { targetName, country, industry, additionalInfo, sanctionsResult } =
-      params.inputData;
-    console.log(`ステップ2: AMLチェック開始 - ${targetName}`);
-
-    const amlResult = await simpleAmlCheckTool.execute({
-      context: {
-        name: targetName,
-        country: country || "Unknown",
-        industry: industry || "Unknown",
-      },
-      runtimeContext: params.runtimeContext,
-    });
-
-    // 統合リスクレベル判定
-    const sanctionsRisk = sanctionsResult.riskAssessment;
-    const amlRisk = amlResult.riskAnalysis.riskLevel;
-
-    let combinedRiskLevel = "Low";
-    if (sanctionsRisk === "Critical Risk" || amlRisk === "Critical") {
-      combinedRiskLevel = "Critical";
-    } else if (sanctionsRisk === "High Risk" || amlRisk === "High") {
-      combinedRiskLevel = "High";
-    } else if (sanctionsRisk === "Medium Risk" || amlRisk === "Medium") {
-      combinedRiskLevel = "Medium";
-    }
-
-    const requiresManualReview =
-      combinedRiskLevel === "Critical" ||
-      combinedRiskLevel === "High" ||
-      amlResult.riskAnalysis.fraudSiteStatus;
-
-    console.log(`AMLチェック完了 - 統合リスクレベル: ${combinedRiskLevel}`);
-
-    return {
-      amlResult,
-      combinedRiskLevel,
-      requiresManualReview,
-    };
-  },
-});
-
-// ステップ3: 最終レポート生成
-const reportGenerationStep = createStep({
-  id: "report-generation-step",
-  inputSchema: z.object({
-    targetName: z.string(),
-    sanctionsResult: z.any(),
-    amlResult: z.any(),
-    requestedBy: z.string().optional(),
-    purpose: z.string().optional(),
-    combinedRiskLevel: z.string(),
-  }),
-  outputSchema: z.object({
-    finalReport: z.any(),
-    overallResult: z.object({
-      riskLevel: z.string(),
-      requiresApproval: z.boolean(),
-      blockTransaction: z.boolean(),
-      recommendedActions: z.array(z.string()),
-    }),
+    complianceResult: z.any(),
+    riskLevel: z.string(),
+    requiresApproval: z.boolean(),
+    blockTransaction: z.boolean(),
+    recommendedActions: z.array(z.string()),
   }),
   execute: async (params) => {
     const {
       targetName,
-      sanctionsResult,
-      amlResult,
+      entityType,
+      country,
+      industry,
       requestedBy,
       purpose,
-      combinedRiskLevel,
+      additionalInfo,
+      urgency,
     } = params.inputData;
-    console.log(`ステップ3: 最終レポート生成開始 - ${targetName}`);
 
-    const finalReport = await reportGeneratorTool.execute({
-      context: {
-        targetName,
-        sanctionsResult,
-        amlResult,
-        requestedBy: requestedBy || "System",
-        purpose: purpose || "Standard compliance check",
-      },
-      runtimeContext: params.runtimeContext,
-    });
+    console.log(`コンプライアンスエージェント実行開始 - ${targetName}`);
 
-    // 総合判定
-    const riskLevel = combinedRiskLevel;
-    const requiresApproval = ["High", "Critical"].includes(riskLevel);
-    const blockTransaction = riskLevel === "Critical";
+    // エージェントにコンプライアンスチェックを依頼
+    const checkRequest = `
+コンプライアンスチェックを実行してください。
 
-    const recommendedActions = [];
-    if (blockTransaction) {
-      recommendedActions.push("取引を即座に停止");
-      recommendedActions.push("上級管理者に緊急報告");
-      recommendedActions.push("法務部門に連絡");
-    } else if (requiresApproval) {
-      recommendedActions.push("上級管理者の承認を取得");
-      recommendedActions.push("追加のデューデリジェンスを実施");
-    } else {
-      recommendedActions.push("標準的なKYC手続きを継続");
-    }
+対象者: ${targetName}
+エンティティタイプ: ${entityType || "individual"}
+${country ? `国: ${country}` : ""}
+${industry ? `業界: ${industry}` : ""}
+${requestedBy ? `要求者: ${requestedBy}` : ""}
+${purpose ? `目的: ${purpose}` : ""}
+${additionalInfo ? `追加情報: ${additionalInfo}` : ""}
+緊急度: ${urgency || "medium"}
 
-    console.log(`最終レポート生成完了 - 総合リスクレベル: ${riskLevel}`);
+以下の項目について包括的なチェックを実行してください：
+1. 制裁リストチェック
+2. AMLチェック
+3. 日本詐欺・犯罪歴チェック（日本人の場合）
+4. 統合レポート生成
 
-    return {
-      finalReport,
-      overallResult: {
+結果は明確で実用的な形式で提供してください。
+`;
+
+    try {
+      const result = await complianceAgent.generate([
+        {
+          role: "user",
+          content: checkRequest,
+        },
+      ]);
+
+      console.log(`コンプライアンスエージェント実行完了 - ${targetName}`);
+
+      // 結果を解析してリスクレベルを判定
+      const resultText = result.text || "";
+      let riskLevel = "Low Risk";
+      let blockTransaction = false;
+      let requiresApproval = false;
+      let recommendedActions: string[] = [];
+
+      if (
+        resultText.includes("CRITICAL RISK") ||
+        resultText.includes("Critical Risk")
+      ) {
+        riskLevel = "Critical Risk";
+        blockTransaction = true;
+        requiresApproval = true;
+        recommendedActions = [
+          "即座の取引停止",
+          "15分以内の上級管理者報告",
+          "緊急調査実施",
+        ];
+      } else if (
+        resultText.includes("High Risk") ||
+        resultText.includes("HIGH RISK")
+      ) {
+        riskLevel = "High Risk";
+        requiresApproval = true;
+        recommendedActions = ["厳格審査実施", "上級管理者承認", "追加確認"];
+      } else if (
+        resultText.includes("Medium Risk") ||
+        resultText.includes("MEDIUM RISK")
+      ) {
+        riskLevel = "Medium Risk";
+        requiresApproval = false;
+        recommendedActions = ["追加書類取得", "3ヶ月以内の再評価"];
+      } else {
+        riskLevel = "Low Risk";
+        recommendedActions = ["標準KYC継続", "年次チェック"];
+      }
+
+      return {
+        complianceResult: result,
         riskLevel,
         requiresApproval,
         blockTransaction,
         recommendedActions,
-      },
-    };
+      };
+    } catch (error) {
+      console.error(`エージェント実行エラー: ${error}`);
+      throw error;
+    }
   },
 });
 
-// メインワークフロー定義
+// メインワークフロー定義（シンプル化）
 export const complianceWorkflow = new Workflow({
   id: "compliance-check-workflow",
   inputSchema: complianceWorkflowInputSchema,
   outputSchema: complianceWorkflowOutputSchema,
-  steps: [sanctionsCheckStep, amlCheckStep, reportGenerationStep],
+  steps: [complianceAgentStep],
 });
 
 // ワークフロー実行ヘルパー関数
 export async function executeComplianceCheck({
   targetName,
-  entityType = "both",
+  entityType = "individual",
   country,
   industry,
   requestedBy = "System",
@@ -252,7 +181,7 @@ export async function executeComplianceCheck({
   );
 
   try {
-    const result = await complianceWorkflow.execute({
+    const workflowResult = await complianceWorkflow.execute({
       inputData: {
         targetName,
         entityType,
@@ -265,16 +194,22 @@ export async function executeComplianceCheck({
       },
     } as any);
 
+    // ワークフローの結果から正しいデータを取得
+    const stepResult = workflowResult as any;
+
     const processingTime = `${Date.now() - startTime}ms`;
 
     return {
       workflowId,
       status: "completed",
       targetName,
-      overallResult: result.overallResult || {},
-      sanctionsCheckResult: result.sanctionsCheckResult,
-      amlCheckResult: result.amlCheckResult,
-      finalReport: result.finalReport,
+      overallResult: {
+        riskLevel: stepResult.riskLevel || "Low Risk",
+        requiresApproval: stepResult.requiresApproval || false,
+        blockTransaction: stepResult.blockTransaction || false,
+        recommendedActions: stepResult.recommendedActions || ["標準KYC継続"],
+      },
+      finalReport: stepResult.complianceResult || stepResult,
       processingTime,
       timestamp: new Date().toISOString(),
     };

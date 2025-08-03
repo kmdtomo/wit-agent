@@ -22,6 +22,7 @@
     "@mastra/libsql": "^0.12.0",
     "@mastra/loggers": "^0.10.5",
     "@mastra/memory": "^0.12.0",
+    "@supabase/supabase-js": "^2.45.4",
     "ai": "^3.4.33",
     "zod": "^3.25.76"
   },
