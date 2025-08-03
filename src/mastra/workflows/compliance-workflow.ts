@@ -145,13 +145,14 @@ ${additionalInfo ? `追加情報: ${additionalInfo}` : ""}
   },
 });
 
-// メインワークフロー定義（シンプル化）
+// メインワークフロー定義（実行フローを定義）
 export const complianceWorkflow = new Workflow({
   id: "compliance-check-workflow",
   inputSchema: complianceWorkflowInputSchema,
   outputSchema: complianceWorkflowOutputSchema,
-  steps: [complianceAgentStep],
-});
+})
+  .then(complianceAgentStep)
+  .commit();
 
 // ワークフロー実行ヘルパー関数
 export async function executeComplianceCheck({

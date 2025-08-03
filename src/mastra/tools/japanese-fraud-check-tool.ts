@@ -233,19 +233,27 @@ export async function analyzeFraudInformationWithAI(
     const majorCriminals = knownFraudDatabase["major_criminals_japan"] || [];
     const allData = [...siteData, ...majorCriminals];
 
-    // 名前の一致をチェック（完全一致・部分一致・別名一致）
+    // 名前の一致をチェック（完全一致を最優先、部分一致は厳格化）
     const matchedEntry = allData.find((entry) => {
       const nameMatch = entry.name.toLowerCase() === name.toLowerCase();
-      const aliasMatch = entry.aliases.some(
-        (alias) =>
-          alias.toLowerCase() === name.toLowerCase() ||
-          name.toLowerCase().includes(alias.toLowerCase())
-      );
-      const partialMatch =
-        entry.name.toLowerCase().includes(name.toLowerCase()) ||
-        name.toLowerCase().includes(entry.name.toLowerCase());
 
-      return nameMatch || aliasMatch || (partialMatch && name.length > 2);
+      // 別名・エイリアスの完全一致チェック
+      const exactAliasMatch = entry.aliases.some(
+        (alias) => alias.toLowerCase() === name.toLowerCase()
+      );
+
+      // 厳格な部分一致チェック（3文字以上かつ非常に類似性が高い場合のみ）
+      const strictPartialMatch =
+        name.length >= 3 &&
+        entry.name.length >= 3 &&
+        // 完全一致または90%以上の類似度
+        ((entry.name.toLowerCase().includes(name.toLowerCase()) &&
+          name.toLowerCase().length / entry.name.toLowerCase().length > 0.9) ||
+          (name.toLowerCase().includes(entry.name.toLowerCase()) &&
+            entry.name.toLowerCase().length / name.toLowerCase().length > 0.9));
+
+      // 完全一致または厳格な別名一致のみ採用（部分一致は除外）
+      return nameMatch || exactAliasMatch;
     });
 
     if (matchedEntry) {
@@ -260,28 +268,12 @@ export async function analyzeFraudInformationWithAI(
       };
     }
 
-    // AI推論による追加判定（名前パターンや関連性）
-    const suspiciousPatterns = [
-      /.*詐欺.*/i,
-      /.*借りパク.*/i,
-      /.*トラブル.*/i,
-      /.*闇金.*/i,
-      /.*被害.*/i,
-    ];
+    // **重要修正**: 名前のパターン判定を削除
+    // 通常の名前に詐欺関連文字が含まれていても問題なしとする
+    // 実際の詐欺情報があるかどうかのみで判定
 
-    const nameHasSuspiciousPattern = suspiciousPatterns.some((pattern) =>
-      pattern.test(name)
-    );
-
-    if (nameHasSuspiciousPattern) {
-      console.log(`⚠️ 疑わしいパターン検出: ${name}`);
-      return {
-        found: true,
-        details: `${siteName}で疑わしいパターンを検出: ${name}`,
-        riskScore: 0.6,
-        confidence: 0.7,
-      };
-    }
+    // 疑わしいパターン検出は無効化（誤判定を避けるため）
+    // 名前だけでは判定しない - 実際の詐欺情報の存在が必要
 
     console.log(`✅ クリーン判定: ${name} - ${siteName}で詐欺情報なし`);
     return {
@@ -635,23 +627,34 @@ async function checkYamagatamasakageSite(
           // 検索結果を分析
           for (const result of searchResults) {
             const content = (result.title + " " + result.snippet).toLowerCase();
-            const nameMatch = content.includes(searchName.toLowerCase());
+            // より厳格な名前マッチング（完全一致または引用符内での一致）
+            const exactNameMatch =
+              content.includes(`"${searchName.toLowerCase()}"`) ||
+              content.includes(`「${searchName}」`) ||
+              (content.includes(`${searchName}`) &&
+                content.split(searchName.toLowerCase()).length > 2);
 
-            // 詐欺関連キーワードの存在確認
-            const fraudKeywords = [
-              "詐欺",
+            // 高信頼度詐欺キーワードのみ（具体的で明確な表現）
+            const highConfidenceFraudKeywords = [
+              "詐欺師",
               "借りパク",
-              "被害",
-              "トラブル",
-              "問題",
-              "返金",
-              "騙し",
+              "被害者",
+              "刑事告訴",
+              "逮捕",
+              "起訴",
+              "有罪",
+              "詐欺罪",
+              "騙し取る",
+              "金返せ",
             ];
-            const hasFraudKeywords = fraudKeywords.some((keyword) =>
-              content.includes(keyword)
-            );
 
-            if (nameMatch && hasFraudKeywords) {
+            const hasHighConfidenceFraudContent =
+              highConfidenceFraudKeywords.some((keyword) =>
+                content.includes(keyword)
+              );
+
+            // より厳格な条件：完全名前一致 + 高信頼度詐欺キーワード
+            if (exactNameMatch && hasHighConfidenceFraudContent) {
               found = true;
               details = `yamagatamasakage.com で詐欺情報発見: ${result.title} - ${result.snippet}`;
               riskScore = 0.9;
@@ -725,27 +728,36 @@ async function checkBlackmoneyScammersSite(
           // 検索結果を分析
           for (const result of searchResults) {
             const content = (result.title + " " + result.snippet).toLowerCase();
-            const nameMatch = content.includes(searchName.toLowerCase());
 
-            // 詐欺関連キーワードの存在確認
-            const fraudKeywords = [
-              "詐欺",
+            // より厳格な名前マッチング
+            const exactNameMatch =
+              content.includes(`"${searchName.toLowerCase()}"`) ||
+              content.includes(`「${searchName}」`) ||
+              (content.includes(`${searchName}`) &&
+                content.split(searchName.toLowerCase()).length > 2);
+
+            // 高信頼度詐欺キーワードのみ
+            const highConfidenceFraudKeywords = [
+              "詐欺師",
               "借りパク",
-              "被害",
-              "トラブル",
-              "問題",
-              "返金",
-              "騙し",
-              "嘘つき",
+              "被害者",
+              "刑事告訴",
+              "逮捕",
+              "起訴",
+              "有罪",
+              "詐欺罪",
+              "騙し取る",
               "泥棒",
+              "嘘つき",
             ];
-            const hasFraudKeywords = fraudKeywords.some((keyword) =>
-              content.includes(keyword)
-            );
+            const hasHighConfidenceFraudContent =
+              highConfidenceFraudKeywords.some((keyword) =>
+                content.includes(keyword)
+              );
 
             if (
-              nameMatch &&
-              (hasFraudKeywords ||
+              exactNameMatch &&
+              (hasHighConfidenceFraudContent ||
                 result.url.includes("eradicationofblackmoneyscammers.com"))
             ) {
               found = true;
@@ -821,24 +833,34 @@ async function checkMoneylineSite(
           // 検索結果を分析
           for (const result of searchResults) {
             const content = (result.title + " " + result.snippet).toLowerCase();
-            const nameMatch = content.includes(searchName.toLowerCase());
 
-            // ファクタリング詐欺や詐欺関連キーワードの存在確認
-            const fraudKeywords = [
-              "詐欺",
-              "ファクタリング",
+            // より厳格な名前マッチング
+            const exactNameMatch =
+              content.includes(`"${searchName.toLowerCase()}"`) ||
+              content.includes(`「${searchName}」`) ||
+              (content.includes(`${searchName}`) &&
+                content.split(searchName.toLowerCase()).length > 2);
+
+            // 高信頼度ファクタリング詐欺キーワード
+            const highConfidenceFraudKeywords = [
+              "詐欺師",
+              "ファクタリング詐欺",
               "刑事告訴",
               "請求書偽造",
               "連絡取れず",
               "逃げ回っている",
+              "詐欺罪",
+              "被害者",
             ];
-            const hasFraudKeywords = fraudKeywords.some((keyword) =>
-              content.includes(keyword)
-            );
+            const hasHighConfidenceFraudContent =
+              highConfidenceFraudKeywords.some((keyword) =>
+                content.includes(keyword)
+              );
 
             if (
-              nameMatch &&
-              (hasFraudKeywords || result.url.includes("moneyline.jp"))
+              exactNameMatch &&
+              (hasHighConfidenceFraudContent ||
+                result.url.includes("moneyline.jp"))
             ) {
               found = true;
               details = `moneyline.jp で詐欺情報発見: ${result.title} - ${result.snippet}`;
@@ -1097,62 +1119,43 @@ async function searchWithDuckDuckGo(
   }
 }
 
-// 汎用的詐欺検出機能（Web検索失敗時のフォールバック）
+// 汎用的詐欺検出機能（Web検索失敗時のフォールバック - 大幅制限版）
 function performGenericFraudDetection(query: string): any[] {
   const results = [];
   const nameParts = query.replace(/[""]/g, "").trim();
 
-  // 一般的な詐欺キーワードパターン
-  const fraudPatterns = [
-    "ファクタリング",
-    "請求書偽造",
-    "借りパク",
-    "連絡取れず",
-    "逃げ回っている",
-    "刑事告訴",
-    "moneyline",
-    "yamagata",
+  // **重要**: 明確で具体的な詐欺キーワードが含まれている場合のみ反応
+  // 一般的な名前だけでは反応しない
+  const explicitFraudPatterns = [
     "詐欺師",
-    "被害",
-    "scam",
-    "fraud",
+    "borrowing fraud", // 英語詐欺キーワード
+    "scammer",
+    "criminal",
+    "convicted",
+    "fraud conviction",
   ];
 
-  // 名前に詐欺関連キーワードが含まれている場合
-  const containsFraudKeywords = fraudPatterns.some((pattern) =>
+  // 検索クエリ自体に明確な詐欺キーワードが含まれている場合のみ
+  const containsExplicitFraudKeywords = explicitFraudPatterns.some((pattern) =>
     query.toLowerCase().includes(pattern.toLowerCase())
   );
 
-  if (containsFraudKeywords) {
+  // **注意**: 詐欺サイトでの検索は汎用検出から除外
+  // 実際のサイト検索結果で判定するため、ここでは無視
+
+  // 明確な詐欺キーワードが含まれている場合のみフォールバック結果を生成
+  if (containsExplicitFraudKeywords) {
     results.push({
-      title: `${nameParts} - 詐欺関連情報検出`,
-      snippet: `${nameParts} について詐欺関連の検索キーワードが検出されました。詳細な調査が必要です。`,
-      url: `#generic-fraud-detection`,
-      riskScore: 0.7,
-      category: "generic_fraud",
+      title: `${nameParts} - 明確な詐欺関連検索`,
+      snippet: `${nameParts} について明確な詐欺関連キーワードでの検索が実行されました。`,
+      url: `#explicit-fraud-search`,
+      riskScore: 0.5, // フォールバックなので低めのスコア
+      category: "explicit_fraud_search",
     });
   }
 
-  // よく知られた詐欺サイトドメインパターン
-  const fraudSiteDomains = [
-    "moneyline.jp",
-    "yamagatamasakage.com",
-    "eradicationofblackmoneyscammers.com",
-  ];
-
-  const mentionsFraudSite = fraudSiteDomains.some((domain) =>
-    query.toLowerCase().includes(domain)
-  );
-
-  if (mentionsFraudSite) {
-    results.push({
-      title: `${nameParts} - 詐欺情報サイト関連`,
-      snippet: `${nameParts} について詐欺情報サイトでの検索が実行されました。詳細確認を推奨します。`,
-      url: `#fraud-site-reference`,
-      riskScore: 0.8,
-      category: "fraud_site_reference",
-    });
-  }
+  // **重要**: サイト関連の汎用検出は削除（実際のサイト検索で判定）
+  // 偽陽性を避けるため
 
   return results;
 }
@@ -1245,7 +1248,32 @@ function calculateRiskScore(
 
   // **重要**: 問題のあるキーワードが含まれていない場合は低スコア
   if (keywordMatches === 0) {
-    score = 0.1; // ほぼリスクなし
+    score = 0.05; // ほぼリスクなし（さらに低く設定）
+  }
+
+  // **追加修正**: 一般的なニュースや正当な情報の場合はスコアを下げる
+  const legitimateContextKeywords = [
+    "プロフィール",
+    "経歴",
+    "会社",
+    "事業",
+    "サービス",
+    "linkedin",
+    "facebook",
+    "twitter",
+    "インタビュー",
+    "記事",
+    "ニュース",
+    "発表",
+    "リリース",
+  ];
+
+  const hasLegitimateContext = legitimateContextKeywords.some((keyword) =>
+    contentLower.includes(keyword)
+  );
+
+  if (hasLegitimateContext && keywordMatches <= 1) {
+    score = score * 0.3; // 正当なコンテキストの場合はスコアを大幅に下げる
   }
 
   return Math.min(score, 1.0);
@@ -1360,44 +1388,62 @@ function calculateOverallRisk(
     maxSiteRisk
   );
 
-  // **重要**: 何も問題が見つからない場合は明確にLOWリスクとする
-  // 詐欺情報サイトで何も見つからず、他の検索でも問題がない場合
-  const isClean =
-    totalFindings === 0 &&
-    !fraudSiteCheck.yamagatamasakage.found &&
-    !fraudSiteCheck.blackmoneyScammers.found &&
-    !fraudSiteCheck.moneyline.found &&
-    overallRiskScore <= 0.3;
+  // **重要修正**: より厳格で保守的な判定基準
+  // 実際に詐欺情報が見つかった場合のみ高リスクとする
+  const hasActualFraudEvidence =
+    fraudSiteCheck.yamagatamasakage.found ||
+    fraudSiteCheck.blackmoneyScammers.found ||
+    fraudSiteCheck.moneyline.found;
 
-  // リスクレベル判定
+  // 重大犯罪者のみCRITICALリスク（リスクスコア1.0）
+  const isMajorCriminal = overallRiskScore >= 1.0;
+
+  // クリーン判定の強化：詐欺サイトで何も見つからず、リスクスコアが低い場合
+  const isClean =
+    !hasActualFraudEvidence && overallRiskScore < 0.7 && totalFindings <= 2; // 軽微な検索結果は許容
+
+  // リスクレベル判定（より保守的に）
   let riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
-  if (isClean) {
-    // 完全にクリーンな場合
-    riskLevel = "LOW";
-    overallRiskScore = 0;
-    recommendations.push("該当なし - 標準のKYC手続きで継続可能");
-    recommendations.push("年次の定期チェックのみで十分");
-  } else if (overallRiskScore >= 0.8 || totalFindings >= 5) {
+  if (isMajorCriminal) {
+    // 重大犯罪者（リスクスコア1.0）のみCRITICAL
+    riskLevel = "CRITICAL";
+    urgentActions.push("即座の取引停止");
+    urgentActions.push("上級管理者への緊急報告");
+    recommendations.push("法執行機関への情報提供を検討");
+    recommendations.push("極めて危険な人物のため取引不可");
+  } else if (hasActualFraudEvidence && overallRiskScore >= 0.9) {
+    // 詐欺サイトで確実に発見された場合
     riskLevel = "CRITICAL";
     urgentActions.push("即座の取引停止");
     urgentActions.push("上級管理者への緊急報告");
     recommendations.push("詳細な身元調査の実施");
-    recommendations.push("法執行機関への情報提供を検討");
-  } else if (overallRiskScore >= 0.6 || totalFindings >= 3) {
+    recommendations.push("詐欺情報サイトでの確認済みのため要注意");
+  } else if (hasActualFraudEvidence && overallRiskScore >= 0.7) {
+    // 詐欺サイトで見つかったが証拠が不十分
     riskLevel = "HIGH";
     urgentActions.push("Enhanced Due Diligence実施");
     recommendations.push("追加の身元確認資料の取得");
     recommendations.push("上級管理者承認の必須化");
-  } else if (overallRiskScore >= 0.4 || totalFindings >= 1) {
+  } else if (overallRiskScore >= 0.8 || totalFindings >= 5) {
+    // 多数の問題が見つかった場合
+    riskLevel = "HIGH";
+    urgentActions.push("詳細調査実施");
+    recommendations.push("追加確認手続きの実施");
+    recommendations.push("リスク管理部門での検討");
+  } else if (overallRiskScore >= 0.5 || totalFindings >= 3) {
+    // 中程度の問題
     riskLevel = "MEDIUM";
     recommendations.push("追加の確認手続きの実施");
-    recommendations.push("定期的な再評価（3ヶ月毎）");
+    recommendations.push("定期的な再評価（6ヶ月毎）");
     recommendations.push("取引限度額の設定を検討");
   } else {
+    // クリーンまたは軽微な問題のみ
     riskLevel = "LOW";
-    recommendations.push("標準のKYC手続きで継続");
-    recommendations.push("年次の定期チェック");
+    overallRiskScore = Math.min(overallRiskScore, 0.3); // LOWリスクの場合はスコアを制限
+    recommendations.push("該当なし - 標準のKYC手続きで継続可能");
+    recommendations.push("年次の定期チェックのみで十分");
+    recommendations.push("現時点で特別な問題は検出されていません");
   }
 
   return {
