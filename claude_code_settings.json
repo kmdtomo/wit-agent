@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "serena": {
+      "command": "source $HOME/.local/bin/env && cd /Users/komodatomo/Desktop/mastra/wit-agent/serena-mcp && uv run serena-mcp-server",
+      "args": [],
+      "env": {
+        "PYTHONPATH": "/Users/komodatomo/Desktop/mastra/wit-agent/serena-mcp/src"
+      }
+    }
+  }
+}
