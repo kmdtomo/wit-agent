@@ -5,8 +5,10 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "mastra dev",
-    "build": "mastra build",
-    "start": "mastra start"
+    "build": "mastra build", 
+    "start": "mastra start",
+    "api": "tsx api-server.ts",
+    "api:dev": "tsx --watch api-server.ts"
   },
   "keywords": [],
   "author": "",
@@ -25,10 +27,14 @@
     "@mastra/memory": "^0.12.0",
     "@supabase/supabase-js": "^2.53.0",
     "ai": "^3.4.33",
+    "cors": "^2.8.5",
     "dotenv": "^17.2.1",
+    "express": "^4.21.2",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
     "@types/node": "^24.1.0",
     "mastra": "^0.10.16",
     "tsx": "^4.20.3",
